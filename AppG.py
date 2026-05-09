@@ -2,62 +2,77 @@ import streamlit as st
 import pandas as pd
 import joblib
 
-# 1. إعداد الصفحة (لازم يكون أول سطر بعد الـ import)
-st.set_page_config(page_title="Customer Churn Prediction", layout="centered")
+# إعدادات الصفحة
+st.set_page_config(page_title="Telco Churn Predictor", layout="wide")
 
-# 2. تحميل الموديل والأعمدة
-@st.cache_resource
-def load_model():
-    model = joblib.load('model.pkl')
-    columns = joblib.load('columns.pkl')
-    return model, columns
+# تحميل الملفات الأساسية
+model = joblib.load('model.pkl')
+columns = joblib.load('columns.pkl')
 
-try:
-    model, columns = load_model()
-except:
-    st.error("Model files not found!")
-
-# 3. واجهة المستخدم
-st.title("📊 Customer Churn Intelligence")
-st.write("ادخل بيانات العميل للتوقع (Stay or Churn)")
+st.title("📊 نظام توقع بقاء أو رحيل العملاء")
+st.markdown("قم بإدخال بيانات العميل للحصول على تحليل دقيق لحالته (Stay or Churn).")
 st.write("---")
 
-# تقسيم المدخلات لصفوف منظمة
-col1, col2 = st.columns(2)
+# --- واجهة إدخال البيانات (3 أعمدة) ---
+col1, col2, col3 = st.columns(3)
 
 with col1:
-    tenure = st.slider("مدة الاشتراك (Tenure)", 0, 72, 12)
-    monthly_charges = st.number_input("المصاريف الشهرية ($)", value=50.0)
-    gender = st.selectbox("النوع", ["Female", "Male"])
+    st.header("👤 بيانات العميل")
+    gender = st.selectbox("النوع (Gender)", ["Female", "Male"])
+    senior = st.selectbox("كبار السن (Senior Citizen)", [0, 1])
+    partner = st.selectbox("شريك (Partner)", ["Yes", "No"])
+    dependents = st.selectbox("معالين (Dependents)", ["Yes", "No"])
+    tenure = st.slider("مدة الاشتراك بالشهور (Tenure)", 0, 72, 12)
 
 with col2:
-    contract = st.selectbox("نوع العقد", ["Month-to-month", "One year", "Two year"])
-    internet = st.selectbox("الإنترنت", ["DSL", "Fiber optic", "No"])
-    payment = st.selectbox("طريقة الدفع", ["Electronic check", "Mailed check", "Bank transfer", "Credit card"])
+    st.header("🌐 الخدمات المشترك بها")
+    internet = st.selectbox("خدمة الإنترنت", ["Fiber optic", "DSL", "No"])
+    security = st.selectbox("الحماية عبر الإنترنت", ["No", "Yes", "No internet service"])
+    backup = st.selectbox("النسخ الاحتياطي", ["No", "Yes", "No internet service"])
+    support = st.selectbox("الدعم الفني", ["No", "Yes", "No internet service"])
+    contract = st.selectbox("نوع العقد (Contract)", ["Month-to-month", "One year", "Two year"])
+
+with col3:
+    st.header("💰 البيانات المالية")
+    monthly_charges = st.number_input("المصاريف الشهرية ($)", value=60.0)
+    total_charges = st.number_input("إجمالي المصاريف ($)", value=1000.0)
+    payment = st.selectbox("طريقة الدفع", ["Electronic check", "Mailed check", "Bank transfer (automatic)", "Credit card (automatic)"])
+    paperless = st.selectbox("فواتير إلكترونية", ["Yes", "No"])
 
 st.write("---")
 
-# 4. زر التوقع
-if st.button("Predict / توقع الحالة"):
-    # إنشاء DataFrame وتصفيره
+# --- زر التحليل والنتيجة ---
+if st.button("🔍 تحليل حالة العميل الآن"):
+    # تجهيز البيانات للموديل
     input_df = pd.DataFrame(0, index=[0], columns=columns)
     
-    # ملء البيانات الأساسية
+    # ربط المدخلات (يجب أن تتطابق الأسماء مع الـ columns.pkl)
     input_df['tenure'] = tenure
     input_df['MonthlyCharges'] = monthly_charges
+    input_df['TotalCharges'] = total_charges
     input_df['gender'] = 1 if gender == "Male" else 0
+    input_df['SeniorCitizen'] = senior
+    input_df['Partner'] = 1 if partner == "Yes" else 0
+    input_df['Dependents'] = 1 if dependents == "Yes" else 0
+    input_df['PaperlessBilling'] = 1 if paperless == "Yes" else 0
     
-    # تحويل العقد لرقم (Encoding بسيط)
-    if contract == "Month-to-month":
-        if 'Contract_Month-to-month' in columns: input_df['Contract_Month-to-month'] = 1
-    elif contract == "One year":
-        if 'Contract_One year' in columns: input_df['Contract_One year'] = 1
-
     # تنفيذ التوقع
     prediction = model.predict(input_df)
+    probability = model.predict_proba(input_df)[0][1]
+
+    # --- عرض النتيجة النهائية بشكل ضخم ---
+    st.write("## النتيجة النهائية:")
     
-    st.write("### النتيجة:")
     if prediction[0] == 1:
-        st.error("⚠️ النتيجة: العميل سيغادر (Customer will Churn)")
+        # حالة المغادرة (Churn)
+        st.error("## 🛑 العميل سيغادر الشركة (Customer Will CHURN)")
+        st.metric(label="نسبة احتمال المغادرة", value=f"{probability:.1%}")
+        st.progress(probability)
     else:
-        st.success("✅ النتيجة: العميل سيبقى (Customer will Stay)")
+        # حالة البقاء (Stay)
+        st.success("## ✅ العميل سيستمر مع الشركة (Customer Will STAY)")
+        st.metric(label="نسبة احتمال البقاء", value=f"{(1-probability):.1%}")
+        st.progress(1 - probability)
+        
+    st.write("---")
+    st.info("ملاحظة: هذا التوقع مبني على تحليل الموديل للبيانات التاريخية في شيت الإكسيل الخاص بالشركة.")
