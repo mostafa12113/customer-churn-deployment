@@ -1,39 +1,63 @@
-# --- جزء معالجة البيانات الجديد ---
-if st.button("🔍 تحليل عميق لحالة العميل"):
-    # 1. إنشاء DataFrame بكل الأعمدة اللي الموديل متدرب عليها وتصفيرها
+import streamlit as st
+import pandas as pd
+import joblib
+
+# 1. إعداد الصفحة (لازم يكون أول سطر بعد الـ import)
+st.set_page_config(page_title="Customer Churn Prediction", layout="centered")
+
+# 2. تحميل الموديل والأعمدة
+@st.cache_resource
+def load_model():
+    model = joblib.load('model.pkl')
+    columns = joblib.load('columns.pkl')
+    return model, columns
+
+try:
+    model, columns = load_model()
+except:
+    st.error("Model files not found!")
+
+# 3. واجهة المستخدم
+st.title("📊 Customer Churn Intelligence")
+st.write("ادخل بيانات العميل للتوقع (Stay or Churn)")
+st.write("---")
+
+# تقسيم المدخلات لصفوف منظمة
+col1, col2 = st.columns(2)
+
+with col1:
+    tenure = st.slider("مدة الاشتراك (Tenure)", 0, 72, 12)
+    monthly_charges = st.number_input("المصاريف الشهرية ($)", value=50.0)
+    gender = st.selectbox("النوع", ["Female", "Male"])
+
+with col2:
+    contract = st.selectbox("نوع العقد", ["Month-to-month", "One year", "Two year"])
+    internet = st.selectbox("الإنترنت", ["DSL", "Fiber optic", "No"])
+    payment = st.selectbox("طريقة الدفع", ["Electronic check", "Mailed check", "Bank transfer", "Credit card"])
+
+st.write("---")
+
+# 4. زر التوقع
+if st.button("Predict / توقع الحالة"):
+    # إنشاء DataFrame وتصفيره
     input_df = pd.DataFrame(0, index=[0], columns=columns)
     
-    # 2. ملء القيم الرقمية مباشرة
+    # ملء البيانات الأساسية
     input_df['tenure'] = tenure
     input_df['MonthlyCharges'] = monthly_charges
-    input_df['TotalCharges'] = total_charges
-    input_df['SeniorCitizen'] = senior
-
-    # 3. الـ Encoding اليدوي (ده اللي بيخلي الموديل يحس بالفرق)
-    # تحويل الجنس
-    if gender == "Male": input_df['gender_Male'] = 1
+    input_df['gender'] = 1 if gender == "Male" else 0
     
-    # تحويل العقد (أهم ميزة للـ Churn)
-    if contract == "Month-to-month": input_df['Contract_Month-to-month'] = 1
-    elif contract == "One year": input_df['Contract_One year'] = 1
-    elif contract == "Two year": input_df['Contract_Two year'] = 1
+    # تحويل العقد لرقم (Encoding بسيط)
+    if contract == "Month-to-month":
+        if 'Contract_Month-to-month' in columns: input_df['Contract_Month-to-month'] = 1
+    elif contract == "One year":
+        if 'Contract_One year' in columns: input_df['Contract_One year'] = 1
 
-    # تحويل نوع الإنترنت
-    if internet == "Fiber optic": input_df['InternetService_Fiber optic'] = 1
-    elif internet == "DSL": input_df['InternetService_DSL'] = 1
-
-    # تحويل الخدمات الإضافية
-    if security == "Yes": input_df['OnlineSecurity_Yes'] = 1
-    if support == "Yes": input_df['TechSupport_Yes'] = 1
-    
-    # 4. تنفيذ التوقع
+    # تنفيذ التوقع
     prediction = model.predict(input_df)
-    probability = model.predict_proba(input_df)[0][1]
-
-    # --- عرض النتيجة بذكاء ---
-    st.write("---")
+    
+    st.write("### النتيجة:")
     if prediction[0] == 1:
-        st.error(f"🚨 النتيجة: العميل في خطر مغادرة عالٍ ({probability:.1%})")
-        st.progress(probability)
+        st.error("⚠️ النتيجة: العميل سيغادر (Customer will Churn)")
     else:
-        st.success(f"✅ النتيجة: العميل مستقر ومن المحتمل بقاؤه ({1-probability:.1%})")
+        st.success("✅ النتيجة: العميل سيبقى (Customer will Stay)")
