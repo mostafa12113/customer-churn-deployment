@@ -2,54 +2,70 @@ import streamlit as st
 import pandas as pd
 import joblib
 
-# إعدادات الصفحة الواسعة
-st.set_page_config(page_title="Telco Intelligence Hub", layout="wide")
+# إعدادات الصفحة
+st.set_page_config(page_title="Advanced Churn Predictor", layout="wide")
 
 # تحميل الموديل والأعمدة
-model = joblib.load('model.pkl')
-columns = joblib.load('columns.pkl')
+try:
+    model = joblib.load('model.pkl')
+    columns = joblib.load('columns.pkl')
+except:
+    st.error("Make sure model.pkl and columns.pkl are in the same folder!")
 
-# --- Sidebar Inputs ---
-st.sidebar.header("📋 Customer Information")
-gender = st.sidebar.selectbox("Gender", ["Male", "Female"])
-tenure = st.sidebar.slider("Tenure (Months)", 0, 72, 12)
-monthly_charges = st.sidebar.number_input("Monthly Charges ($)", value=50.0)
-contract = st.sidebar.selectbox("Contract Type", ["Month-to-month", "One year", "Two year"])
+st.title("📊 Telco Customer Churn Intelligence")
+st.markdown("Enter all customer details for a high-precision prediction.")
+st.write("---")
 
-# --- Main Layout ---
-st.title("🚀 Telco Retention Intelligence System")
-st.markdown("---")
+# تقسيم المدخلات لثلاثة أعمدة عشان الشكل يبقى منظم وكبير
+col1, col2, col3 = st.columns(3)
 
-# Metrics Section
-c1, c2, c3 = st.columns(3)
-c1.metric("Model Accuracy", "81.4%", "+2.1%")
-c2.metric("Avg. Monthly Charge", f"${monthly_charges}", "Global Avg: $64")
-c3.metric("Retention Risk", "High" if tenure < 12 else "Low")
+with col1:
+    st.header("👤 Demographics")
+    gender = st.selectbox("Gender", ["Male", "Female"])
+    senior = st.selectbox("Senior Citizen", ["Yes", "No"])
+    partner = st.selectbox("Has Partner?", ["Yes", "No"])
+    dependents = st.selectbox("Has Dependents?", ["Yes", "No"])
 
-tab1, tab2 = st.tabs(["🎯 Prediction Tool", "📊 Insights Dashboard"])
+with col2:
+    st.header("📞 Services")
+    tenure = st.slider("Tenure (Months)", 0, 72, 12)
+    phone = st.selectbox("Phone Service", ["Yes", "No"])
+    paperless = st.selectbox("Paperless Billing", ["Yes", "No"])
+    contract = st.selectbox("Contract Type", ["Month-to-month", "One year", "Two year"])
 
-with tab1:
-    st.subheader("Customer Prediction Status")
-    if st.button("Analyze Retention Risk"):
-        input_df = pd.DataFrame(0, index=[0], columns=columns)
-        input_df['tenure'] = tenure
-        input_df['MonthlyCharges'] = monthly_charges
-        input_df['gender'] = 1 if gender == "Male" else 0
-        
-        prediction = model.predict(input_df)
-        
-        if prediction[0] == 1:
-            st.error(f"⚠️ HIGH RISK: This customer is likely to churn. Recommended Action: Offer {contract} discount.")
-        else:
-            st.success("✅ LOW RISK: This customer is likely to remain loyal.")
+with col3:
+    st.header("💰 Financials")
+    monthly_charges = st.number_input("Monthly Charges ($)", value=50.0)
+    total_charges = st.number_input("Total Charges ($)", value=600.0)
+    payment_method = st.selectbox("Payment Method", ["Electronic check", "Mailed check", "Bank transfer", "Credit card"])
 
-with tab2:
-    st.subheader("Key Drivers of Churn")
-    # عرض رسم بياني بسيط
-    chart_data = pd.DataFrame({
-        'Feature': ['Tenure', 'MonthlyCharges', 'Contract', 'TechSupport'],
-        'Importance': [0.45, 0.30, 0.15, 0.10]
-    })
-    st.bar_chart(chart_data.set_index('Feature'))
-    st.info("Insights: Customers with tenure less than 10 months and Month-to-Month contracts show 70% higher churn rates.")
-  
+st.write("---")
+
+if st.button("Generate Prediction Report"):
+    # تجهيز الداتا بكل الـ Features
+    input_df = pd.DataFrame(0, index=[0], columns=columns)
+    
+    # ربط المدخلات بالأعمدة (Encoding بسيط)
+    input_df['tenure'] = tenure
+    input_df['MonthlyCharges'] = monthly_charges
+    input_df['TotalCharges'] = total_charges
+    input_df['gender'] = 1 if gender == "Male" else 0
+    input_df['SeniorCitizen'] = 1 if senior == "Yes" else 0
+    input_df['Partner'] = 1 if partner == "Yes" else 0
+    input_df['Dependents'] = 1 if dependents == "Yes" else 0
+    input_df['PhoneService'] = 1 if phone == "Yes" else 0
+    input_df['PaperlessBilling'] = 1 if paperless == "Yes" else 0
+    
+    # التوقع
+    prediction = model.predict(input_df)
+    probability = model.predict_proba(input_df)[0][1] # نسبة احتمال الـ Churn
+    
+    st.subheader("Results:")
+    if prediction[0] == 1:
+        st.error(f"🚨 Prediction: Customer will CHURN (Probability: {probability:.2%})")
+        st.info("Strategy: Consider offering a contract upgrade or discount.")
+    else:
+        st.success(f"✅ Prediction: Customer will STAY (Probability of leaving: {probability:.2%})")
+
+
+    
